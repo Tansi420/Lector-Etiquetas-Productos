@@ -3,11 +3,10 @@ import streamlit as st
 import os
 import time
 import glob
-import html
+import hashlib
 import cv2
 import numpy as np
 import pytesseract
-from PIL import Image
 from gtts import gTTS
 from googletrans import Translator
 
@@ -16,172 +15,180 @@ from googletrans import Translator
 # --------------------------------------------------
 
 st.set_page_config(
-    page_title="LeeLabel | Lee tus etiquetas",
+    page_title="Lector de texto",
     page_icon="🔎",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 os.makedirs("temp", exist_ok=True)
+translator = Translator()
 
 # --------------------------------------------------
-# ESTILOS
+# ESTILOS VISUALES
 # --------------------------------------------------
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
 
-.stApp {
-    background: #F7F8F4;
-    color: #202D28;
+html, body, [class*="css"] {
     font-family: 'DM Sans', sans-serif;
 }
 
-.block-container {
-    max-width: 1150px;
-    padding-top: 2.5rem;
-    padding-bottom: 4rem;
+.stApp {
+    background: linear-gradient(145deg, #f5f7ff 0%, #f8f9fc 55%, #f0f4ff 100%);
+    color: #202642;
 }
 
-h1, h2, h3 {
-    font-family: 'Manrope', sans-serif !important;
-    color: #202D28 !important;
-    letter-spacing: -0.7px;
+header[data-testid="stHeader"] {
+    background: transparent;
+}
+
+.block-container {
+    padding-top: 2.5rem;
+    padding-bottom: 3rem;
+    max-width: 1200px;
 }
 
 .hero {
-    background: #E6EEDC;
-    border-radius: 28px;
-    padding: 40px;
+    background: linear-gradient(120deg, #222a66 0%, #5148bd 65%, #8176ed 100%);
+    padding: 38px 38px 34px 38px;
+    border-radius: 26px;
+    color: white;
     margin-bottom: 30px;
-    position: relative;
-    overflow: hidden;
+    box-shadow: 0 14px 35px rgba(64, 64, 155, 0.18);
 }
 
-.hero-label {
-    color: #246B53;
-    text-transform: uppercase;
+.hero-tag {
+    display: inline-block;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.23);
+    border-radius: 30px;
+    padding: 6px 12px;
     font-size: 12px;
-    font-weight: 800;
-    letter-spacing: 2px;
-    margin-bottom: 16px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 15px;
 }
 
 .hero h1 {
-    font-size: clamp(32px, 4vw, 52px);
-    line-height: 1.12;
-    margin: 0;
-    max-width: 700px;
+    color: white;
+    font-size: clamp(30px, 4vw, 43px);
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    line-height: 1.15;
+    margin: 0 0 12px 0;
 }
 
 .hero p {
-    color: #56645A;
+    color: #e3e5ff;
     font-size: 16px;
-    line-height: 1.8;
-    max-width: 600px;
-    margin-top: 18px;
-    margin-bottom: 0;
+    line-height: 1.7;
+    max-width: 650px;
+    margin: 0;
 }
 
-.hero-decoration {
-    position: absolute;
-    right: 40px;
-    top: 25px;
-    font-size: 100px;
-    opacity: 0.15;
-}
-
-.section-heading {
-    font-family: 'Manrope', sans-serif;
-    font-size: 24px;
+.section-title {
+    color: #242b50;
+    font-size: 23px;
     font-weight: 800;
     letter-spacing: -0.6px;
-    margin-top: 15px;
-    margin-bottom: 5px;
+    margin: 12px 0 5px 0;
 }
 
-.section-description {
-    color: #758079;
+.section-subtitle {
+    color: #777f9a;
     font-size: 14px;
     margin-bottom: 22px;
 }
 
 div[data-testid="stVerticalBlockBorderWrapper"] {
-    background: #FFFFFF;
-    border: 1px solid #E6EAE3;
+    background: rgba(255,255,255,0.9);
+    border: 1px solid #e7eafb;
     border-radius: 20px;
-    padding: 18px;
-}
-
-div[data-testid="stFileUploader"] section {
-    background: #FAFBF8;
-    border: 1.5px dashed #C6D4C8;
-    border-radius: 16px;
-}
-
-div[data-testid="stSidebar"] {
-    background: #FFFFFF;
-    border-right: 1px solid #E6EAE3;
+    padding: 20px;
+    box-shadow: 0 6px 22px rgba(43, 53, 108, 0.045);
 }
 
 .stButton > button {
-    background: #246B53;
-    color: white;
     border: none;
     border-radius: 12px;
-    padding: 0.7rem 1rem;
+    min-height: 45px;
     font-weight: 700;
-    transition: 0.2s ease;
+    background: linear-gradient(110deg, #5148bd, #7468e8);
+    color: white;
+    transition: all 0.2s ease;
 }
 
 .stButton > button:hover {
-    background: #194E3C;
+    background: linear-gradient(110deg, #40379f, #6256d1);
     color: white;
-    border: none;
+    box-shadow: 0 5px 15px rgba(81, 72, 189, 0.2);
     transform: translateY(-1px);
 }
 
-.tip {
-    background: #F0F3E9;
-    border-radius: 14px;
-    padding: 16px 18px;
-    color: #56645A;
-    font-size: 13px;
-    line-height: 1.7;
-    margin-top: 16px;
+div[data-testid="stFileUploader"] {
+    background: #f8f9ff;
+    border: 1.5px dashed #c8cef3;
+    border-radius: 16px;
+    padding: 12px;
+}
+
+div[data-testid="stSidebar"] {
+    background: #ffffff;
+    border-right: 1px solid #eaecf7;
+}
+
+div[data-testid="stSidebar"] h2,
+div[data-testid="stSidebar"] h3 {
+    color: #292f59;
+    font-weight: 800;
+}
+
+div[data-testid="stSidebar"] label {
+    color: #535b78;
+    font-weight: 500;
+}
+
+div[data-testid="stAudio"] {
+    border-radius: 12px;
 }
 
 .result-label {
-    color: #246B53;
+    color: #5148bd;
     font-size: 12px;
-    font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 1.5px;
+    letter-spacing: 1px;
+    font-weight: 800;
     margin-bottom: 8px;
 }
 
-.result-box {
-    background: white;
-    border: 1px solid #E6EAE3;
-    border-radius: 18px;
-    padding: 24px;
-    line-height: 1.8;
-    color: #26352D;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    font-size: 16px;
+.helper {
+    background: #f0f2ff;
+    color: #555c8c;
+    border-radius: 12px;
+    padding: 13px 16px;
+    font-size: 13px;
+    line-height: 1.6;
+    margin: 10px 0 20px 0;
 }
 
 .footer {
-    color: #8A948C;
-    text-align: center;
+    color: #9299b0;
     font-size: 12px;
-    margin-top: 50px;
+    text-align: center;
+    padding-top: 35px;
 }
 
-hr {
-    border-color: #E6EAE3;
+@media (max-width: 640px) {
+    .hero {
+        padding: 25px 22px;
+        border-radius: 20px;
+    }
+    .block-container {
+        padding-top: 1.2rem;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -191,53 +198,77 @@ hr {
 # FUNCIONES
 # --------------------------------------------------
 
-def text_to_speech(input_language, output_language, text, tld):
-    translator = Translator()
+LANGUAGES = {
+    "Español": "es",
+    "Inglés": "en",
+    "Bengalí": "bn",
+    "Coreano": "ko",
+    "Mandarín": "zh-cn",
+    "Japonés": "ja",
+}
 
+ACCENTS = {
+    "Predeterminado": "com",
+    "India": "co.in",
+    "Reino Unido": "co.uk",
+    "Estados Unidos": "com",
+    "Canadá": "ca",
+    "Australia": "com.au",
+    "Irlanda": "ie",
+    "Sudáfrica": "co.za",
+}
+
+
+def remove_files(days=7):
+    """Elimina archivos de audio antiguos."""
+    now = time.time()
+    for file in glob.glob("temp/*.mp3"):
+        try:
+            if os.stat(file).st_mtime < now - days * 86400:
+                os.remove(file)
+        except OSError:
+            pass
+
+
+def extract_text(image_bytes, invert=False):
+    """Procesa una imagen y extrae su texto mediante OCR."""
+    image_array = np.frombuffer(image_bytes, np.uint8)
+    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+
+    if image is None:
+        raise ValueError("No se pudo leer la imagen. Intenta con otro archivo.")
+
+    if invert:
+        image = cv2.bitwise_not(image)
+
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    return pytesseract.image_to_string(image_rgb)
+
+
+def text_to_speech(input_language, output_language, text, tld):
+    """Traduce el texto y genera un archivo de audio."""
     translation = translator.translate(
         text,
         src=input_language,
         dest=output_language
     )
+    translated_text = translation.text
 
-    trans_text = translation.text
-
-    tts = gTTS(
-        trans_text,
+    audio = gTTS(
+        text=translated_text,
         lang=output_language,
         tld=tld,
         slow=False
     )
 
-    my_file_name = "".join(
-        c for c in text[:20]
-        if c.isalnum() or c in (" ", "_", "-")
-    ).strip()
+    filename = hashlib.md5(
+        f"{translated_text}{time.time()}".encode("utf-8")
+    ).hexdigest() + ".mp3"
 
-    if not my_file_name:
-        my_file_name = "audio"
+    filepath = os.path.join("temp", filename)
+    audio.save(filepath)
 
-    # Evitar nombres de archivo problemáticos.
-    my_file_name = my_file_name.replace(" ", "_")
-    file_path = os.path.join("temp", f"{my_file_name}.mp3")
-
-    tts.save(file_path)
-
-    return my_file_name, trans_text
-
-
-def remove_files(n):
-    mp3_files = glob.glob("temp/*mp3")
-    now = time.time()
-    n_days = n * 86400
-
-    for file_path in mp3_files:
-        if os.stat(file_path).st_mtime < now - n_days:
-            os.remove(file_path)
-
-
-def recognize_text(image_array):
-    return pytesseract.image_to_string(image_array)
+    return filepath, translated_text
 
 
 remove_files(7)
@@ -249,304 +280,270 @@ remove_files(7)
 
 st.markdown("""
 <div class="hero">
-    <div class="hero-label">LEELABEL · LECTURA INTELIGENTE</div>
-    <h1>Las etiquetas pequeñas.<br>Las letras, más claras.</h1>
+    <div class="hero-tag">✦ LECTURA INTELIGENTE</div>
+    <h1>Lee lo que antes<br>no podías ver.</h1>
     <p>
-        Fotografía la etiqueta de un producto y descubre lo que dice.
-        Lee ingredientes, instrucciones y advertencias con ayuda
-        del reconocimiento de texto y escucha el contenido en otro idioma.
+        Convierte imágenes en texto, traduce su contenido
+        y escúchalo en el idioma que prefieras.
+        Todo desde un solo lugar.
     </p>
-    <div class="hero-decoration">⌕</div>
 </div>
 """, unsafe_allow_html=True)
 
 
 # --------------------------------------------------
-# ESTADO DE LA APLICACIÓN
-# --------------------------------------------------
-
-if "recognized_text" not in st.session_state:
-    st.session_state.recognized_text = ""
-
-if "image_source" not in st.session_state:
-    st.session_state.image_source = ""
-
-
-# --------------------------------------------------
-# CAPTURA Y CARGA DE IMAGEN
-# --------------------------------------------------
-
-st.markdown(
-    '<div class="section-heading">01 — Captura tu etiqueta</div>',
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    '<div class="section-description">'
-    'Fotografía el empaque o carga una imagen que ya tengas.'
-    '</div>',
-    unsafe_allow_html=True
-)
-
-col1, col2 = st.columns(2, gap="large")
-
-with col1:
-    with st.container(border=True):
-        st.markdown("### 📷 Fotografía")
-        st.caption("Usa la cámara para capturar las letras de la etiqueta.")
-
-        cam_ = st.checkbox(
-            "Usar cámara",
-            key="use_camera"
-        )
-
-        img_file_buffer = None
-
-        if cam_:
-            img_file_buffer = st.camera_input(
-                "Fotografía la etiqueta",
-                help="Procura que el texto esté enfocado y bien iluminado."
-            )
-
-        st.markdown("""
-        <div class="tip">
-            <b>Consejo:</b> acerca la cámara a las letras,
-            evita los reflejos y mantén la etiqueta recta
-            para facilitar la lectura.
-        </div>
-        """, unsafe_allow_html=True)
-
-with col2:
-    with st.container(border=True):
-        st.markdown("### 🏷️ Cargar imagen")
-        st.caption("Selecciona una fotografía guardada en tu dispositivo.")
-
-        bg_image = st.file_uploader(
-            "Sube la etiqueta del producto",
-            type=["png", "jpg", "jpeg"]
-        )
-
-        if bg_image is not None:
-            try:
-                image = Image.open(bg_image).convert("RGB")
-
-                st.image(
-                    image,
-                    caption="Etiqueta seleccionada",
-                    use_container_width=True
-                )
-
-                # Se conserva el guardado local de la imagen.
-                with open(bg_image.name, "wb") as file:
-                    file.write(bg_image.getvalue())
-
-                st.success(f"Imagen guardada como {bg_image.name}")
-
-                img_array = np.array(image)
-                st.session_state.recognized_text = recognize_text(
-                    img_array
-                )
-                st.session_state.image_source = "upload"
-
-            except Exception as error:
-                st.error(f"No fue posible procesar la imagen: {error}")
-
-
-# --------------------------------------------------
-# PROCESAMIENTO DE CÁMARA
+# BARRA LATERAL: CONFIGURACIÓN
 # --------------------------------------------------
 
 with st.sidebar:
-    st.markdown("## ⚙️ Preferencias")
-    st.caption("Personaliza cómo quieres leer tu etiqueta.")
-    st.divider()
+    st.markdown("## ⚙️ Configuración")
+    st.caption("Personaliza tu experiencia de lectura.")
 
-    st.markdown("### Procesamiento de imagen")
+    st.markdown("---")
+    st.markdown("### 📷 Captura de imagen")
 
-    filtro = st.radio(
-        "Aplicar filtro a la fotografía",
-        ("No", "Sí"),
-        help="Invierte los colores de la imagen antes de reconocer el texto."
+    camera_enabled = st.checkbox("Usar cámara")
+
+    camera_filter = st.radio(
+        "Filtro para la imagen",
+        options=["Original", "Invertir colores"],
+        index=0,
+        help="Invertir colores puede ayudar con algunos tipos de imágenes."
     )
 
+    st.markdown("---")
+    st.markdown("### 🌐 Traducción")
 
-if img_file_buffer is not None:
-    try:
-        bytes_data = img_file_buffer.getvalue()
-
-        cv2_img = cv2.imdecode(
-            np.frombuffer(bytes_data, np.uint8),
-            cv2.IMREAD_COLOR
-        )
-
-        if cv2_img is not None:
-            if filtro == "Sí":
-                cv2_img = cv2.bitwise_not(cv2_img)
-
-            img_rgb = cv2.cvtColor(
-                cv2_img,
-                cv2.COLOR_BGR2RGB
-            )
-
-            st.session_state.recognized_text = recognize_text(img_rgb)
-            st.session_state.image_source = "camera"
-
-    except Exception as error:
-        st.error(f"No fue posible procesar la fotografía: {error}")
-
-
-# --------------------------------------------------
-# RESULTADO DEL RECONOCIMIENTO
-# --------------------------------------------------
-
-st.divider()
-
-st.markdown(
-    '<div class="section-heading">02 — Lee el texto</div>',
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    '<div class="section-description">'
-    'Aquí encontrarás el texto que se pudo reconocer en la etiqueta.'
-    '</div>',
-    unsafe_allow_html=True
-)
-
-text = st.session_state.recognized_text
-
-if text.strip():
-    st.markdown(
-        '<div class="result-label">Texto reconocido</div>',
-        unsafe_allow_html=True
+    input_language_name = st.selectbox(
+        "Idioma del texto original",
+        list(LANGUAGES.keys()),
+        index=0
     )
 
-    # Escapar el texto para evitar que caracteres de la etiqueta
-    # se interpreten como HTML.
-    safe_text = html.escape(text)
-
-    st.markdown(
-        f'<div class="result-box">{safe_text}</div>',
-        unsafe_allow_html=True
-    )
-else:
-    st.info(
-        "Tu texto aparecerá aquí cuando captures una fotografía "
-        "o cargues una imagen."
-    )
-
-
-# --------------------------------------------------
-# IDIOMA, TRADUCCIÓN Y AUDIO
-# --------------------------------------------------
-
-with st.sidebar:
-    st.divider()
-    st.markdown("### 🌐 Idioma y audio")
-
-    language_options = {
-        "Inglés": "en",
-        "Español": "es",
-        "Bengalí": "bn",
-        "Coreano": "ko",
-        "Mandarín": "zh-cn",
-        "Japonés": "ja"
-    }
-
-    in_lang = st.selectbox(
-        "Idioma original de la etiqueta",
-        tuple(language_options.keys())
-    )
-
-    input_language = language_options[in_lang]
-
-    out_lang = st.selectbox(
-        "Idioma del audio",
-        tuple(language_options.keys()),
+    output_language_name = st.selectbox(
+        "Idioma de salida",
+        list(LANGUAGES.keys()),
         index=1
     )
 
-    output_language = language_options[out_lang]
+    st.markdown("---")
+    st.markdown("### 🔊 Voz y audio")
 
-    english_accent = st.selectbox(
+    accent_name = st.selectbox(
         "Acento de la voz",
-        (
-            "Default",
-            "India",
-            "United Kingdom",
-            "United States",
-            "Canada",
-            "Australia",
-            "Ireland",
-            "South Africa"
-        )
+        list(ACCENTS.keys()),
+        index=0
     )
-
-    tld_options = {
-        "Default": "com",
-        "India": "co.in",
-        "United Kingdom": "co.uk",
-        "United States": "com",
-        "Canada": "ca",
-        "Australia": "com.au",
-        "Ireland": "ie",
-        "South Africa": "co.za"
-    }
-
-    tld = tld_options[english_accent]
 
     display_output_text = st.checkbox(
-        "Mostrar texto traducido"
+        "Mostrar texto traducido",
+        value=True
     )
 
-    convert_button = st.button(
-        "🔊 Escuchar etiqueta",
-        use_container_width=True
+    st.markdown("---")
+    st.caption("Lector inteligente · OCR + traducción + voz")
+
+
+input_language = LANGUAGES[input_language_name]
+output_language = LANGUAGES[output_language_name]
+tld = ACCENTS[accent_name]
+
+
+# --------------------------------------------------
+# CONTENIDO PRINCIPAL
+# --------------------------------------------------
+
+left_column, right_column = st.columns([1, 1], gap="large")
+
+text = ""
+image_bytes = None
+
+with left_column:
+    st.markdown(
+        '<div class="section-title">01 · Añade una imagen</div>',
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        '<div class="section-subtitle">Fotografía o carga una imagen '
+        'para reconocer su contenido.</div>',
+        unsafe_allow_html=True
     )
 
-    if convert_button:
-        if not text.strip():
-            st.warning(
-                "Primero fotografía una etiqueta o carga una imagen."
+    with st.container(border=True):
+        uploaded_file = st.file_uploader(
+            "Selecciona una imagen",
+            type=["png", "jpg", "jpeg"],
+            help="Puedes cargar fotografías, documentos o etiquetas."
+        )
+
+        if uploaded_file is not None:
+            image_bytes = uploaded_file.getvalue()
+
+            # Conserva la funcionalidad de guardar el archivo cargado.
+            with open(uploaded_file.name, "wb") as file:
+                file.write(image_bytes)
+
+            st.image(
+                image_bytes,
+                caption="Imagen seleccionada",
+                use_container_width=True
             )
+
+        elif camera_enabled:
+            camera_image = st.camera_input("Toma una fotografía")
+
+            if camera_image is not None:
+                image_bytes = camera_image.getvalue()
+
         else:
+            st.markdown("""
+            <div class="helper">
+                💡 <b>Consejo:</b> busca una buena iluminación,
+                mantén la imagen enfocada y procura que el texto
+                esté lo más recto posible.
+            </div>
+            """, unsafe_allow_html=True)
+
+with right_column:
+    st.markdown(
+        '<div class="section-title">02 · Texto reconocido</div>',
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        '<div class="section-subtitle">El contenido extraído aparecerá aquí.</div>',
+        unsafe_allow_html=True
+    )
+
+    with st.container(border=True):
+        if image_bytes is not None:
             try:
-                with st.spinner("Preparando la traducción y el audio..."):
-                    result, output_text = text_to_speech(
-                        input_language,
-                        output_language,
-                        text,
-                        tld
+                with st.spinner("Analizando imagen..."):
+                    text = extract_text(
+                        image_bytes,
+                        invert=(camera_filter == "Invertir colores")
                     )
 
-                    audio_path = os.path.join(
-                        "temp",
-                        f"{result}.mp3"
+                if text.strip():
+                    st.markdown(
+                        '<div class="result-label">✓ Texto detectado</div>',
+                        unsafe_allow_html=True
                     )
-
-                    with open(audio_path, "rb") as audio_file:
-                        audio_bytes = audio_file.read()
-
-                st.markdown("### 🔊 Tu audio")
-                st.audio(audio_bytes, format="audio/mp3")
-
-                if display_output_text:
-                    st.markdown("### Texto traducido")
-                    st.write(output_text)
+                    text = st.text_area(
+                        "Puedes editar el texto antes de traducirlo",
+                        value=text,
+                        height=240,
+                        key="recognized_text"
+                    )
+                else:
+                    st.warning(
+                        "No se detectó texto. Intenta con otra imagen "
+                        "o mejora la iluminación."
+                    )
+                    text = ""
 
             except Exception as error:
-                st.error(
-                    f"No fue posible generar el audio: {error}"
-                )
+                st.error(f"No se pudo procesar la imagen: {error}")
+                text = ""
+        else:
+            st.markdown("""
+            <div class="helper">
+                <b>Tu texto aparecerá aquí.</b><br><br>
+                1. Carga una imagen o toma una fotografía.<br>
+                2. Espera a que termine el reconocimiento.<br>
+                3. Revisa el texto y edítalo si es necesario.
+            </div>
+            """, unsafe_allow_html=True)
+
+            text = st.text_area(
+                "O escribe o pega un texto manualmente",
+                value="",
+                height=150,
+                key="manual_text"
+            )
 
 
 # --------------------------------------------------
-# PIE DE PÁGINA
+# TRADUCCIÓN Y GENERACIÓN DE AUDIO
 # --------------------------------------------------
+
+st.markdown("---")
+st.markdown(
+    '<div class="section-title">03 · Escucha tu texto</div>',
+    unsafe_allow_html=True
+)
+st.markdown(
+    '<div class="section-subtitle">Genera una versión hablada '
+    'del texto en el idioma seleccionado.</div>',
+    unsafe_allow_html=True
+)
+
+audio_column, info_column = st.columns([1, 1], gap="large")
+
+with audio_column:
+    with st.container(border=True):
+        st.markdown("### 🎧 Tu audio")
+
+        if st.button(
+            "✦ Traducir y generar audio",
+            use_container_width=True,
+            type="primary"
+        ):
+            if not text.strip():
+                st.warning("Primero añade una imagen o escribe un texto.")
+            else:
+                try:
+                    with st.spinner("Traduciendo y generando tu audio..."):
+                        audio_path, output_text = text_to_speech(
+                            input_language,
+                            output_language,
+                            text,
+                            tld
+                        )
+
+                    st.success("¡Tu audio está listo!")
+
+                    with open(audio_path, "rb") as audio_file:
+                        st.audio(
+                            audio_file.read(),
+                            format="audio/mp3"
+                        )
+
+                    if display_output_text:
+                        st.markdown("#### Texto traducido")
+                        st.text_area(
+                            "Resultado de la traducción",
+                            value=output_text,
+                            height=150,
+                            key="translated_text"
+                        )
+
+                except Exception as error:
+                    st.error(
+                        "No se pudo generar el audio. "
+                        "Verifica tu conexión a internet y los idiomas "
+                        f"seleccionados. Detalle: {error}"
+                    )
+
+with info_column:
+    with st.container(border=True):
+        st.markdown("### ✨ ¿Cómo funciona?")
+        st.markdown("""
+        **01. Captura**  
+        Fotografía o carga una imagen con texto.
+
+        **02. Reconoce**  
+        El sistema identifica las palabras de la imagen mediante OCR.
+
+        **03. Traduce**  
+        Convierte el contenido al idioma de tu elección.
+
+        **04. Escucha**  
+        Genera un audio para que puedas escuchar el resultado.
+        """)
 
 st.markdown("""
 <div class="footer">
-    LEELABEL · Lee mejor lo que los empaques tienen para decir.
+    LECTOR INTELIGENTE · Reconocimiento óptico de caracteres
 </div>
 """, unsafe_allow_html=True)
 ```
