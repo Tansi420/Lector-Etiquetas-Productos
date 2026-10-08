@@ -82,9 +82,8 @@ ACENTOS = {
     "Sudáfrica": "co.za",
 }
 
-# Ruta de la foto de portada, relativa a la raíz del repositorio de GitHub.
-# Ejemplo: guarda tu imagen en la carpeta "imagenes" como "portada.jpg".
-FOTO_PORTADA = "imagenes/portada.jpg"
+# Foto de portada: súbela al mismo repositorio, junto a app.py, con este nombre.
+FOTO_PORTADA = "portada.jpg"
 
 os.makedirs("temp", exist_ok=True)
 translator = Translator()
