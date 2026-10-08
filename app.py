@@ -82,6 +82,10 @@ ACENTOS = {
     "Sudáfrica": "co.za",
 }
 
+# Ruta de la foto de portada, relativa a la raíz del repositorio de GitHub.
+# Ejemplo: guarda tu imagen en la carpeta "imagenes" como "portada.jpg".
+FOTO_PORTADA = "imagenes/portada.jpg"
+
 os.makedirs("temp", exist_ok=True)
 translator = Translator()
 
@@ -151,6 +155,9 @@ st.write(
     "Fotografía la etiqueta de un producto del supermercado, lee su letra pequeña "
     "(ingredientes, fecha de vencimiento, información nutricional) y escúchala traducida."
 )
+
+if os.path.exists(FOTO_PORTADA):
+    st.image(FOTO_PORTADA, use_container_width=True)
 
 # ---------------------------------------------------------------------------
 # 1. Fuente de la imagen
