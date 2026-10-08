@@ -233,7 +233,7 @@ elif not text:
     st.caption("El botón se activa cuando haya texto reconocido.")        --amber: #F2A541;
         --muted: #5B6B82;
         --line: #D5DEE8;
-    }
+    
 
     html, body, [class*="css"], .stApp {
         font-family: 'Source Sans 3', sans-serif;
