@@ -484,7 +484,7 @@ with st.container(border=True):
                     st.markdown("#### Texto traducido")
                     st.markdown(f'<div class="result">{output_text}</div>', unsafe_allow_html=True)
             except Exception as e:
-                st.error(f"No se pudo completar la traducción. Revisa tu conexión e inténtalo de nuevo. ({e})")}
+                st.error(f"No se pudo completar la traducción. Revisa tu conexión e inténtalo de nuevo. ({e})")
 
 .stApp {
     background: linear-gradient(145deg, #f5f7ff 0%, #f8f9fc 55%, #f0f4ff 100%);
